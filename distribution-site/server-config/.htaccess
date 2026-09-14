@@ -1,0 +1,54 @@
+# Bemas Treyler dagitim sayfasi - melina.com.tr icin Apache yapilandirmasi
+#
+# Bu dosyayi sunucuda:
+#   /bemas-muhasebe/.htaccess
+# olarak yerlestirin (yani public_html/bemas-muhasebe/.htaccess).
+# mod_mime, mod_headers, mod_expires ve mod_rewrite modullerinin acik
+# oldugundan emin olun (Natro/Turhost gibi paylasimli barindirmalarda
+# genellikle varsayilan olarak aciktir).
+
+# ---- Dogru MIME turleri: tarayici indirmeyi calistirmaya CALISMASIN ----
+<IfModule mod_mime.c>
+    AddType application/octet-stream .exe
+    AddType application/octet-stream .msi
+    AddType application/zip          .zip
+    AddType text/plain               .sha256
+</IfModule>
+
+# ---- Kurulum dosyalarini her zaman "farkli kaydet" indirmesi olarak sun ----
+<IfModule mod_headers.c>
+    <FilesMatch "\.(exe|msi|zip)$">
+        Header set Content-Disposition "attachment"
+        Header set X-Content-Type-Options "nosniff"
+    </FilesMatch>
+
+    # "latest" kopya dosyasi siklikla guncellendigi icin kisa cache.
+    <FilesMatch "-latest\.(exe|msi|zip)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+
+    # Versiyon numarali dosyalar (bemas-setup-v1.0.0.exe) asla degismez.
+    <FilesMatch "-v[0-9][0-9.]*\.(exe|msi|zip)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # index.html arama motorlarina kapali, sik guncellenebilir (dahili portal).
+    <FilesMatch "index\.html$">
+        Header set Cache-Control "no-cache, must-revalidate"
+        Header set X-Robots-Tag "noindex, nofollow"
+    </FilesMatch>
+</IfModule>
+
+# ---- downloads/ klasorunde dizin listelemeyi kapat ----
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# ---- Temiz URL: /bemas-muhasebe/ -> index.html ----
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /bemas-muhasebe/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^$ index.html [L]
+</IfModule>

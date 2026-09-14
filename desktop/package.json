@@ -1,0 +1,24 @@
+{
+  "name": "bemas-treyler-masaustu",
+  "version": "1.0.0",
+  "description": "Bemas Treyler Cari Hesap Takip Sistemi - Masaüstü İstemcisi",
+  "author": "Bemas Treyler",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.bemastreyler.cari",
+    "productName": "Bemas Treyler Cari Hesap",
+    "files": ["main.js", "preload.js", "icon.*"],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    }
+  }
+}

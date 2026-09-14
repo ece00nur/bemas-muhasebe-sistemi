@@ -1,0 +1,31 @@
+# Python / backend
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.db
+backend/uploads/excel/*
+backend/uploads/receipts/*
+backend/exports/*
+!backend/uploads/excel/.gitkeep
+!backend/uploads/receipts/.gitkeep
+!backend/exports/.gitkeep
+backend/.env
+backend/*.log
+*.log
+
+# Desktop (Electron)
+desktop/node_modules/
+desktop/dist/
+
+# Built installer binaries (build output, not source)
+distribution-site/*/downloads/*.exe
+distribution-site/*/downloads/*.msi
+distribution-site/*/downloads/*.zip
+distribution-site/*/downloads/*.sha256
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local tooling state
+.claude/

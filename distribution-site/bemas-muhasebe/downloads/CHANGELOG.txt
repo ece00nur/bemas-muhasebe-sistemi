@@ -1,0 +1,19 @@
+Bemas Muhasebe - Sürüm Notları
+================================
+
+v1.0.0 - 12.09.2026
+--------------------
+- İlk sürüm.
+- Excel fatura (gelen/giden) otomatik içe aktarma.
+- Banka dekontu PDF ayrıştırma ve OCR desteği.
+- Firma bazlı cari hesap takibi ve Excel dışa aktarım.
+
+Yeni sürüm yayınlarken:
+  1. desktop/ içinde: npm run dist  (dist/*.exe dosyasını üretir)
+  2. Üretilen .exe dosyasını downloads/bemas-setup-latest.exe olarak buraya kopyalayın
+     (üzerine yazın - eski sürüm silinir, tek dosya tutulur).
+  3. SHA-256 üretin:
+       python -c "import hashlib;print(hashlib.sha256(open('bemas-setup-latest.exe','rb').read()).hexdigest())"
+     ve downloads/bemas-setup-latest.exe.sha256 dosyasına yazın.
+  4. index.html içindeki RELEASE nesnesini (version, dateLabel, fileSize, sha256)
+     güncelleyin.
