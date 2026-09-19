@@ -36,6 +36,18 @@ def create_invoice(payload: schemas.InvoiceCreate, db: Session = Depends(get_db)
     return invoice
 
 
+@router.patch("/{invoice_id}", response_model=schemas.InvoiceOut)
+def update_invoice(invoice_id: int, payload: schemas.InvoiceUpdate, db: Session = Depends(get_db)):
+    invoice = db.query(models.Invoice).get(invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Fatura bulunamadı")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(invoice, field, value)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
 @router.delete("/{invoice_id}", status_code=204)
 def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
     invoice = db.query(models.Invoice).get(invoice_id)
@@ -67,6 +79,18 @@ def list_transactions(
     if company_id:
         query = query.filter(models.Transaction.company_id == company_id)
     return query.order_by(models.Transaction.transaction_date.desc()).all()
+
+
+@router.patch("/transactions/{transaction_id}", response_model=schemas.TransactionOut)
+def update_transaction(transaction_id: int, payload: schemas.TransactionUpdate, db: Session = Depends(get_db)):
+    tx = db.query(models.Transaction).get(transaction_id)
+    if not tx:
+        raise HTTPException(status_code=404, detail="İşlem bulunamadı")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(tx, field, value)
+    db.commit()
+    db.refresh(tx)
+    return tx
 
 
 @router.delete("/transactions/{transaction_id}", status_code=204)

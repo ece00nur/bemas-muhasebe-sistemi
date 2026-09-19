@@ -63,9 +63,11 @@ const Api = (() => {
 
     listInvoices: (companyId) => request(`/invoices${companyId ? `?company_id=${companyId}` : ""}`),
     createInvoice: (data) => request("/invoices", { method: "POST", body: data }),
+    updateInvoice: (id, data) => request(`/invoices/${id}`, { method: "PATCH", body: data }),
     deleteInvoice: (id) => request(`/invoices/${id}`, { method: "DELETE" }),
 
     createTransaction: (data) => request("/invoices/transactions", { method: "POST", body: data }),
+    updateTransaction: (id, data) => request(`/invoices/transactions/${id}`, { method: "PATCH", body: data }),
     listTransactions: (companyId) => request(`/invoices/transactions/list${companyId ? `?company_id=${companyId}` : ""}`),
     deleteTransaction: (id) => request(`/invoices/transactions/${id}`, { method: "DELETE" }),
 

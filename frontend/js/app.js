@@ -4,6 +4,24 @@ const App = (() => {
 
   const fmtMoney = (n) => (n ?? 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString("tr-TR") : "-";
+  // A bare signed number ("-3.600,00") is ambiguous to whoever reads a sent
+  // statement - always show the absolute amount plus who owes whom in words.
+  function fmtNetBalance(n) {
+    const v = n ?? 0;
+    if (Math.abs(v) < 0.005) return "Bakiye yok (0,00 TRY)";
+    return v > 0
+      ? `${fmtMoney(v)} TRY (Müşteri Borcu)`
+      : `${fmtMoney(Math.abs(v))} TRY (Bizim Borcumuz)`;
+  }
+  // Always shows a non-negative "still owed" figure; if payments exceeded
+  // invoices, the excess becomes a separately-labeled credit line instead of
+  // a bare negative number under a "debt" stat.
+  function fmtDebtCredit(n, creditLabel) {
+    const v = n ?? 0;
+    const debtHtml = `${fmtMoney(Math.max(v, 0))} TRY`;
+    if (v >= -0.005) return debtHtml;
+    return `${debtHtml}<div class="hint" style="margin-top:4px">${esc(creditLabel)}: ${fmtMoney(Math.abs(v))} TRY</div>`;
+  }
   const esc = (s) => (s ?? "").toString().replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   function toast(msg) {
@@ -12,6 +30,42 @@ const App = (() => {
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 3500);
+  }
+
+  function openEditRowModal({ rowType, initial, onSave }) {
+    const isInvoice = rowType === "invoice";
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-card">
+        <h3>${isInvoice ? "Faturayı Düzenle" : "Ödemeyi Düzenle"}</h3>
+        <form id="editRowForm">
+          ${isInvoice ? `<label>Fatura No</label><input name="invoice_number" value="${esc(initial.reference)}" required>` : ""}
+          <label>Tarih</label><input name="date" type="date" value="${initial.date}" required>
+          <label>Tutar</label><input name="amount" type="number" step="0.01" value="${initial.amount}" required>
+          <label>Açıklama</label><input name="description" value="${esc(initial.description || "")}">
+          <div class="modal-actions">
+            <button class="primary" type="submit">Kaydet</button>
+            <button class="secondary" type="button" id="editRowCancel">İptal</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#editRowCancel").onclick = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.querySelector("#editRowForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = Object.fromEntries(fd.entries());
+      data.amount = Number(data.amount);
+      try {
+        await onSave(data);
+        overlay.remove();
+      } catch (err) {
+        toast(err.message);
+      }
+    };
   }
 
   function layout(activeRoute, contentHtml) {
@@ -83,7 +137,7 @@ const App = (() => {
         <td>${esc(b.tax_id)}</td>
         <td class="num">${fmtMoney(b.net_customer_debt)}</td>
         <td class="num">${fmtMoney(b.net_company_debt)}</td>
-        <td class="num ${b.net_balance >= 0 ? "pos" : "neg"}">${fmtMoney(b.net_balance)}</td>
+        <td class="num ${b.net_balance >= 0 ? "pos" : "neg"}">${fmtNetBalance(b.net_balance)}</td>
       </tr>
     `).join("");
 
@@ -207,6 +261,10 @@ const App = (() => {
         <td class="num">${r.debit ? fmtMoney(r.debit) : ""}</td>
         <td class="num">${r.credit ? fmtMoney(r.credit) : ""}</td>
         <td class="num">${fmtMoney(r.running_balance)}</td>
+        <td class="row-actions">
+          <button class="secondary small" data-row-edit="${r.row_type}:${r.id}">Düzenle</button>
+          <button class="secondary danger small" data-row-del="${r.row_type}:${r.id}">Sil</button>
+        </td>
       </tr>
     `).join("");
 
@@ -216,9 +274,9 @@ const App = (() => {
         <h2>${esc(ledger.company.name)}</h2>
         <div class="hint">Vergi No: ${esc(ledger.company.tax_id)} ${ledger.company.iban ? `| IBAN: ${esc(ledger.company.iban)}` : ""}</div>
         <div class="grid" style="margin-top:12px">
-          <div class="stat"><div class="label">Net Müşteri Borcu (Bize)</div><div class="value pos">${fmtMoney(b.net_customer_debt)} TRY</div></div>
-          <div class="stat"><div class="label">Net Firma Borcu (Bizden)</div><div class="value neg">${fmtMoney(b.net_company_debt)} TRY</div></div>
-          <div class="stat"><div class="label">Genel Net Bakiye</div><div class="value ${b.net_balance >= 0 ? "pos" : "neg"}">${fmtMoney(b.net_balance)} TRY</div></div>
+          <div class="stat"><div class="label">Net Müşteri Borcu (Bize)</div><div class="value pos">${fmtDebtCredit(b.net_customer_debt, "Müşterinin Alacağı")}</div></div>
+          <div class="stat"><div class="label">Net Firma Borcu (Bizden)</div><div class="value neg">${fmtDebtCredit(b.net_company_debt, "Bizim Alacağımız")}</div></div>
+          <div class="stat"><div class="label">Genel Net Bakiye</div><div class="value ${b.net_balance >= 0 ? "pos" : "neg"}">${fmtNetBalance(b.net_balance)}</div></div>
         </div>
         <button class="primary" id="exportBtn">Excel Olarak Dışa Aktar</button>
         <button class="secondary" id="exportPdfBtn" style="margin-left:8px">PDF Olarak Dışa Aktar</button>
@@ -228,8 +286,8 @@ const App = (() => {
         <h2>Müşteri Hesabı (Satış Faturaları / Tahsilatlar)</h2>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Tarih</th><th>Tür</th><th>Referans</th><th>Açıklama</th><th class="num">Borç</th><th class="num">Alacak</th><th class="num">Bakiye</th></tr></thead>
-            <tbody>${rowHtml(ledger.receivable_rows) || `<tr><td colspan="7">Kayıt yok.</td></tr>`}</tbody>
+            <thead><tr><th>Tarih</th><th>Tür</th><th>Referans</th><th>Açıklama</th><th class="num">Borç</th><th class="num">Yapılan Ödeme</th><th class="num">Bakiye</th><th></th></tr></thead>
+            <tbody>${rowHtml(ledger.receivable_rows) || `<tr><td colspan="8">Kayıt yok.</td></tr>`}</tbody>
           </table>
         </div>
       </div>
@@ -238,8 +296,8 @@ const App = (() => {
         <h2>Tedarikçi Hesabı (Alış Faturaları / Ödemeler)</h2>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Tarih</th><th>Tür</th><th>Referans</th><th>Açıklama</th><th class="num">Borç</th><th class="num">Alacak</th><th class="num">Bakiye</th></tr></thead>
-            <tbody>${rowHtml(ledger.payable_rows) || `<tr><td colspan="7">Kayıt yok.</td></tr>`}</tbody>
+            <thead><tr><th>Tarih</th><th>Tür</th><th>Referans</th><th>Açıklama</th><th class="num">Borç</th><th class="num">Yapılan Ödeme</th><th class="num">Bakiye</th><th></th></tr></thead>
+            <tbody>${rowHtml(ledger.payable_rows) || `<tr><td colspan="8">Kayıt yok.</td></tr>`}</tbody>
           </table>
         </div>
       </div>
@@ -303,6 +361,60 @@ const App = (() => {
         toast(err.message);
       }
     };
+
+    const rowsById = {};
+    [...ledger.receivable_rows, ...ledger.payable_rows].forEach(r => {
+      rowsById[`${r.row_type}:${r.id}`] = r;
+    });
+
+    root.querySelectorAll("[data-row-del]").forEach(btn => {
+      btn.onclick = async () => {
+        const [type, id] = btn.dataset.rowDel.split(":");
+        if (!confirm(`Bu ${type === "invoice" ? "faturayı" : "ödemeyi"} silmek istediğinize emin misiniz?`)) return;
+        try {
+          if (type === "invoice") await Api.deleteInvoice(id);
+          else await Api.deleteTransaction(id);
+          toast("Silindi");
+          renderCompanyDetail(companyId);
+        } catch (err) {
+          toast(err.message);
+        }
+      };
+    });
+
+    root.querySelectorAll("[data-row-edit]").forEach(btn => {
+      btn.onclick = () => {
+        const [type, id] = btn.dataset.rowEdit.split(":");
+        const row = rowsById[`${type}:${id}`];
+        openEditRowModal({
+          rowType: type,
+          initial: {
+            date: row.date,
+            amount: type === "invoice" ? row.debit : row.credit,
+            description: row.description,
+            reference: row.reference,
+          },
+          onSave: async (data) => {
+            if (type === "invoice") {
+              await Api.updateInvoice(id, {
+                invoice_number: data.invoice_number,
+                issue_date: data.date,
+                amount: data.amount,
+                description: data.description,
+              });
+            } else {
+              await Api.updateTransaction(id, {
+                transaction_date: data.date,
+                amount: data.amount,
+                description: data.description,
+              });
+            }
+            toast("Güncellendi");
+            renderCompanyDetail(companyId);
+          },
+        });
+      };
+    });
   }
 
   async function renderUploads() {

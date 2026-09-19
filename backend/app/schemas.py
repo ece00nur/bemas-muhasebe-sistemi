@@ -90,6 +90,17 @@ class InvoiceCreate(InvoiceBase):
     company_id: int
 
 
+class InvoiceUpdate(BaseModel):
+    invoice_number: Optional[str] = None
+    issue_date: Optional[dt.date] = None
+    due_date: Optional[dt.date] = None
+    amount: Optional[float] = None
+    tax_amount: Optional[float] = None
+    currency: Optional[str] = None
+    description: Optional[str] = None
+    ettn: Optional[str] = None
+
+
 class InvoiceOut(InvoiceBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -112,6 +123,15 @@ class TransactionBase(BaseModel):
 
 class TransactionCreate(TransactionBase):
     company_id: int
+
+
+class TransactionUpdate(BaseModel):
+    transaction_date: Optional[dt.date] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    counterparty_name: Optional[str] = None
+    counterparty_iban: Optional[str] = None
+    description: Optional[str] = None
 
 
 class TransactionOut(TransactionBase):
@@ -165,6 +185,7 @@ class IngestResult(BaseModel):
 
 class LedgerRow(BaseModel):
     row_type: str  # "invoice" | "payment"
+    id: int  # the underlying Invoice.id or Transaction.id, per row_type
     date: dt.date
     reference: str
     description: Optional[str] = None

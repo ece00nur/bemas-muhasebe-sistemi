@@ -55,20 +55,39 @@ _NET_LABEL_STYLE = ParagraphStyle("net_label", fontName=_FONT_BOLD, fontSize=12,
 _NET_VALUE_STYLE = ParagraphStyle("net_value", fontName=_FONT_BOLD, fontSize=12, leading=16, alignment=2)
 
 _COL_WIDTHS = [22 * mm, 18 * mm, 30 * mm, 95 * mm, 28 * mm, 28 * mm, 30 * mm]  # sums well under A4-landscape width
-_TOTAL_LABEL_WIDTH = sum(_COL_WIDTHS) - 45 * mm
-_TOTAL_VALUE_WIDTH = 45 * mm  # wide enough for bold 12pt "696,500.00 TRY" without wrapping
+_TOTAL_LABEL_WIDTH = sum(_COL_WIDTHS) - 70 * mm
+_TOTAL_VALUE_WIDTH = 70 * mm  # wide enough for bold 12pt "696,500.00 TRY (Bizim Borcumuz)" without wrapping
 
 
 def _money(value: float) -> str:
     return f'{value:,.2f} TRY'
 
 
+def _net_balance_text(value: float) -> str:
+    # A bare signed total ("-3.600,00") is ambiguous to whoever receives this
+    # statement - spell out who owes whom instead of relying on the minus sign.
+    if abs(value) < 0.005:
+        return "0,00 TRY (Bakiye Yok)"
+    label = "Müşteri Borcu" if value > 0 else "Bizim Borcumuz"
+    return f"{abs(value):,.2f} TRY ({label})"
+
+
 def _p(text: str, style=_CELL_STYLE) -> Paragraph:
     return Paragraph(text if text else "", style)
 
 
+def _debt_credit_table(debt_label: str, credit_label: str, balance_value: float) -> Table:
+    # Always a non-negative "what's still owed" figure; if payments exceeded
+    # invoices the excess becomes its own clearly-labeled credit row instead
+    # of a bare negative number under a "debt" heading.
+    rows = [[_p(debt_label, _TOTAL_LABEL_STYLE), _p(_money(max(balance_value, 0.0)), _TOTAL_VALUE_STYLE)]]
+    if balance_value < -0.005:
+        rows.append([_p(credit_label, _TOTAL_LABEL_STYLE), _p(_money(abs(balance_value)), _TOTAL_VALUE_STYLE)])
+    return Table(rows, colWidths=[_TOTAL_LABEL_WIDTH, _TOTAL_VALUE_WIDTH])
+
+
 def _section_table(rows, row_type_labels) -> Table:
-    header = [_p(h, _HEADER_STYLE) for h in ["Tarih", "Tür", "Referans", "Açıklama", "Borç", "Alacak", "Bakiye"]]
+    header = [_p(h, _HEADER_STYLE) for h in ["Tarih", "Tür", "Referans", "Açıklama", "Borç", "Yapılan Ödeme", "Bakiye"]]
     data = [header]
     for row in rows:
         data.append([
@@ -109,33 +128,44 @@ def export_company_ledger_pdf(ledger: LedgerResponse) -> str:
     )
 
     row_type_labels = {"invoice": "Fatura", "payment": "Ödeme"}
+    has_receivable = len(ledger.receivable_rows) > 0
+    has_payable = len(ledger.payable_rows) > 0
+
     story = [
         Paragraph("BEMAS TREYLER - Cari Hesap Ekstresi", _TITLE_STYLE),
         Paragraph(f"Firma: {ledger.company.name}  |  Vergi No: {ledger.company.tax_id}", _SUBTITLE_STYLE),
         Paragraph(f"Rapor Tarihi: {dt.date.today().strftime('%d.%m.%Y')}", _SUBTITLE_STYLE),
-
-        Paragraph("MÜŞTERİ HESABI (Satış Faturaları / Tahsilatlar)", _SECTION_STYLE),
-        _section_table(ledger.receivable_rows, row_type_labels),
-        Spacer(1, 6),
-        Table(
-            [[_p("Net Müşteri Borcu:", _TOTAL_LABEL_STYLE), _p(_money(ledger.balance.net_customer_debt), _TOTAL_VALUE_STYLE)]],
-            colWidths=[_TOTAL_LABEL_WIDTH, _TOTAL_VALUE_WIDTH],
-        ),
-
-        Paragraph("TEDARİKÇİ HESABI (Alış Faturaları / Ödemeler)", _SECTION_STYLE),
-        _section_table(ledger.payable_rows, row_type_labels),
-        Spacer(1, 6),
-        Table(
-            [[_p("Net Firma Borcu:", _TOTAL_LABEL_STYLE), _p(_money(ledger.balance.net_company_debt), _TOTAL_VALUE_STYLE)]],
-            colWidths=[_TOTAL_LABEL_WIDTH, _TOTAL_VALUE_WIDTH],
-        ),
-
-        Spacer(1, 12),
-        Table(
-            [[_p("GENEL NET BAKİYE", _NET_LABEL_STYLE), _p(_money(ledger.balance.net_balance), _NET_VALUE_STYLE)]],
-            colWidths=[_TOTAL_LABEL_WIDTH, _TOTAL_VALUE_WIDTH],
-        ),
     ]
+
+    if has_receivable:
+        story += [
+            Paragraph("MÜŞTERİ HESABI (Satış Faturaları / Tahsilatlar)", _SECTION_STYLE),
+            _section_table(ledger.receivable_rows, row_type_labels),
+            Spacer(1, 6),
+            _debt_credit_table("Net Müşteri Borcu:", "Müşterinin Alacağı:", ledger.balance.net_customer_debt),
+        ]
+
+    # An empty account (no invoices, no payments) is not worth a page of
+    # clutter - a company that's purely a customer never becomes a supplier
+    # just because the ledger has a fixed two-section template.
+    if has_payable:
+        story += [
+            Paragraph("TEDARİKÇİ HESABI (Alış Faturaları / Ödemeler)", _SECTION_STYLE),
+            _section_table(ledger.payable_rows, row_type_labels),
+            Spacer(1, 6),
+            _debt_credit_table("Net Firma Borcu:", "Bizim Alacağımız:", ledger.balance.net_company_debt),
+        ]
+
+    # The overall figure only adds information when both sides are active -
+    # otherwise it just repeats the single section total already shown above.
+    if has_receivable and has_payable:
+        story += [
+            Spacer(1, 12),
+            Table(
+                [[_p("GENEL NET BAKİYE", _NET_LABEL_STYLE), _p(_net_balance_text(ledger.balance.net_balance), _NET_VALUE_STYLE)]],
+                colWidths=[_TOTAL_LABEL_WIDTH, _TOTAL_VALUE_WIDTH],
+            ),
+        ]
 
     doc.build(story)
     return file_path

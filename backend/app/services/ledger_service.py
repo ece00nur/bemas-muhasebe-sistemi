@@ -51,6 +51,7 @@ def _build_ledger_rows(
             inv.issue_date,
             LedgerRow(
                 row_type="invoice",
+                id=inv.id,
                 date=inv.issue_date,
                 reference=inv.invoice_number,
                 description=inv.description,
@@ -65,6 +66,7 @@ def _build_ledger_rows(
             tx.transaction_date,
             LedgerRow(
                 row_type="payment",
+                id=tx.id,
                 date=tx.transaction_date,
                 reference=f"Ödeme #{tx.id}",
                 description=tx.description or tx.counterparty_name,
