@@ -303,6 +303,28 @@ const App = (() => {
       </div>
 
       <div class="card">
+        <h2>Fatura Ekle</h2>
+        <p class="hint">Toplu Excel listesinde olmayan tekil faturalar için (ör. e-Arşiv/e-Fatura) - tutar KDV dahil toplam olmalı.</p>
+        <form id="invoiceForm">
+          <div class="grid">
+            <div><label>Yön</label>
+              <select name="direction">
+                <option value="outgoing">Giden Fatura (Satış - Müşteriye kestiğimiz)</option>
+                <option value="incoming">Gelen Fatura (Alış - Bize kesilen)</option>
+              </select>
+            </div>
+            <div><label>Fatura No *</label><input name="invoice_number" required></div>
+            <div><label>Tarih *</label><input name="issue_date" type="date" required></div>
+            <div><label>Tutar (KDV Dahil) *</label><input name="amount" type="number" step="0.01" required></div>
+            <div><label>KDV Tutarı</label><input name="tax_amount" type="number" step="0.01"></div>
+            <div><label>ETTN</label><input name="ettn"></div>
+          </div>
+          <label>Açıklama</label><input name="description">
+          <button class="primary" type="submit">Fatura Ekle</button>
+        </form>
+      </div>
+
+      <div class="card">
         <h2>Manuel Ödeme / Tahsilat Ekle</h2>
         <form id="txForm">
           <div class="grid">
@@ -346,6 +368,23 @@ const App = (() => {
       downloadExport(Api.exportLedgerUrl(companyId), `${ledger.company.name}_cari_hesap.xlsx`);
     document.getElementById("exportPdfBtn").onclick = () =>
       downloadExport(Api.exportLedgerPdfUrl(companyId), `${ledger.company.name}_cari_hesap.pdf`);
+
+    document.getElementById("invoiceForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = Object.fromEntries(fd.entries());
+      data.company_id = Number(companyId);
+      data.amount = Number(data.amount);
+      data.tax_amount = data.tax_amount ? Number(data.tax_amount) : null;
+      if (!data.ettn) delete data.ettn;
+      try {
+        await Api.createInvoice(data);
+        toast("Fatura eklendi");
+        renderCompanyDetail(companyId);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
 
     document.getElementById("txForm").onsubmit = async (e) => {
       e.preventDefault();
