@@ -26,6 +26,12 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# Render/Heroku-style hosts hand out "postgres://..." connection strings, but
+# SQLAlchemy 2.0 only accepts the "postgresql://" scheme and raises on the
+# old one - normalize it so DATABASE_URL can be pasted in as-is.
+if settings.database_url.startswith("postgres://"):
+    settings.database_url = settings.database_url.replace("postgres://", "postgresql://", 1)
+
 os.makedirs(os.path.join(settings.upload_dir, "excel"), exist_ok=True)
 os.makedirs(os.path.join(settings.upload_dir, "receipts"), exist_ok=True)
 os.makedirs(settings.export_dir, exist_ok=True)

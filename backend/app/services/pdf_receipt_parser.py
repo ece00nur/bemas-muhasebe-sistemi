@@ -83,9 +83,17 @@ def _extract_text_pdfplumber(file_path: str) -> str:
 def _extract_text_ocr(file_path: str) -> str:
     if not _OCR_AVAILABLE:
         return ""
-    images = convert_from_path(file_path, dpi=300)
-    text_parts = [pytesseract.image_to_string(img, lang="tur+eng") for img in images]
-    return "\n".join(text_parts).strip()
+    try:
+        # The pytesseract/pdf2image *packages* can import fine even when their
+        # underlying system binaries (poppler, tesseract) aren't installed on
+        # this host - that only surfaces here, at call time. Degrade to "no
+        # OCR text" rather than failing the whole upload on a hosted server
+        # that doesn't have those binaries.
+        images = convert_from_path(file_path, dpi=300)
+        text_parts = [pytesseract.image_to_string(img, lang="tur+eng") for img in images]
+        return "\n".join(text_parts).strip()
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _to_float(raw: str) -> Optional[float]:

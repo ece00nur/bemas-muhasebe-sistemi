@@ -10,6 +10,7 @@ column instead of overflowing into - or forcing a break onto - another page.
 import os
 import datetime as dt
 
+import reportlab
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
@@ -27,15 +28,16 @@ MUTED = colors.HexColor("#666666")
 
 # Base-14 PDF fonts (Helvetica) use WinAnsi encoding, which has no glyphs for
 # Turkish i-dotless/g-breve/etc. and silently renders them as the wrong letter.
-# Register a real Unicode TTF (Windows' bundled Arial) so Turkish text is
-# correct; fall back to Helvetica if it isn't present (e.g. non-Windows host).
-_WIN_FONTS_DIR = r"C:\Windows\Fonts"
+# Use the Unicode TTF (Bitstream Vera) that ships inside the reportlab package
+# itself - same path on every OS (Windows dev machine, Linux hosting), so
+# Turkish text renders correctly with zero extra system dependency either way.
+_VERA_DIR = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
 try:
-    pdfmetrics.registerFont(TTFont("BodyFont", os.path.join(_WIN_FONTS_DIR, "arial.ttf")))
-    pdfmetrics.registerFont(TTFont("BodyFont-Bold", os.path.join(_WIN_FONTS_DIR, "arialbd.ttf")))
+    pdfmetrics.registerFont(TTFont("BodyFont", os.path.join(_VERA_DIR, "Vera.ttf")))
+    pdfmetrics.registerFont(TTFont("BodyFont-Bold", os.path.join(_VERA_DIR, "VeraBd.ttf")))
     _FONT = "BodyFont"
     _FONT_BOLD = "BodyFont-Bold"
-except Exception:  # noqa: BLE001 - non-Windows host without Arial available
+except Exception:  # noqa: BLE001 - extremely unlikely, reportlab ships this font
     _FONT = "Helvetica"
     _FONT_BOLD = "Helvetica-Bold"
 

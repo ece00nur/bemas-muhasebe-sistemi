@@ -1,0 +1,39 @@
+# Render Blueprint - deploys the Bemas Muhasebe backend + admin panel as a
+# public web service with its own free PostgreSQL database.
+#
+# Kurulum (bir kere yapılır):
+#   1. https://render.com adresinde ücretsiz hesap açın (GitHub ile giriş yapabilirsiniz)
+#   2. Dashboard'da "New +" -> "Blueprint" -> bu GitHub reposunu seçin
+#   3. Render bu dosyayı otomatik bulur, "Apply" deyin
+#   4. İlk deploy sırasında SEED_ADMIN_USERNAME ve SEED_ADMIN_PASSWORD için
+#      size sorulacak kutucuklara kendi kullanıcı adı/şifrenizi girin
+#   5. Birkaç dakika sonra https://<servis-adi>.onrender.com/adminpanel/ adresi
+#      canlı olur - bu linki paylaşmanız yeterli, başka kurulum gerekmez
+
+services:
+  - type: web
+    name: bemas-muhasebe
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bemas-muhasebe-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SEED_ADMIN_USERNAME
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PANEL_BASE_PATH
+        value: /adminpanel
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+
+databases:
+  - name: bemas-muhasebe-db
+    plan: free
