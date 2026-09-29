@@ -17,6 +17,11 @@ backend/*.log
 desktop/node_modules/
 desktop/dist/
 
+# PyInstaller-frozen backend (build output, not source)
+backend/build/
+backend/dist_pyinstaller/
+backend/*.spec
+
 # Built installer binaries (build output, not source)
 distribution-site/*/downloads/*.exe
 distribution-site/*/downloads/*.msi

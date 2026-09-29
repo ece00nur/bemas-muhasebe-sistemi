@@ -1,6 +1,16 @@
 Bemas Muhasebe - Sürüm Notları
 ================================
 
+v1.1.0 - 29.09.2026
+--------------------
+- Uygulama artık tamamen kendi içinde çalışıyor: arka plan servisi (backend)
+  kurulumun içine gömülü geliyor, ayrı bir Python kurulumu veya sunucu adresi
+  girme adımı gerekmiyor.
+- Farklı bir ağdaki/şehirdeki bir bilgisayara kurulduğunda da, IP adresi veya
+  ağ ayarı sormadan doğrudan kendi başına açılıyor.
+- Not: her bilgisayardaki kurulum kendi verilerini kendi içinde tutar; birden
+  fazla bilgisayara kurulursa veriler aralarında otomatik senkronize olmaz.
+
 v1.0.1 - 19.09.2026
 --------------------
 - Bilgisayar açılışında arka planda görünmez şekilde başlama (artık hiçbir

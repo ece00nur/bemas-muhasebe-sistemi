@@ -1,9 +1,30 @@
 import os
+import sys
 from pydantic_settings import BaseSettings
+
+# When PyInstaller freezes this into a standalone .exe (bundled inside the
+# Electron installer for fully-offline, no-network-setup use on someone
+# else's computer), __file__-relative paths point inside the temporary/
+# read-only bundle - not a place to keep a growing SQLite database. Detect
+# that case and keep all writable data in a normal per-user folder instead,
+# which survives app updates/reinstalls.
+_FROZEN = getattr(sys, "frozen", False)
+
+if _FROZEN:
+    _DATA_DIR = os.path.join(
+        os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+        "BemasMuhasebe",
+    )
+    _ENV_FILE = os.path.join(_DATA_DIR, ".env")
+else:
+    _DATA_DIR = os.path.dirname(os.path.dirname(__file__))
+    _ENV_FILE = os.path.join(_DATA_DIR, ".env")
+
+os.makedirs(_DATA_DIR, exist_ok=True)
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite:///./bemas_muhasebe.db"
+    database_url: str = f"sqlite:///{os.path.join(_DATA_DIR, 'bemas_muhasebe.db')}"
 
     secret_key: str = "change-this-to-a-long-random-string-in-production"
     access_token_expire_minutes: int = 480
@@ -16,11 +37,11 @@ class Settings(BaseSettings):
 
     tesseract_cmd: str | None = None
 
-    upload_dir: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
-    export_dir: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "exports")
+    upload_dir: str = os.path.join(_DATA_DIR, "uploads")
+    export_dir: str = os.path.join(_DATA_DIR, "exports")
 
     class Config:
-        env_file = ".env"
+        env_file = _ENV_FILE
         extra = "ignore"
 
 

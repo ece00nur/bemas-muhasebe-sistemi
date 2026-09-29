@@ -1,19 +1,37 @@
 const { app, BrowserWindow, Menu, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { spawn } = require("child_process");
 
-// The desktop client is a thin shell: it connects to a Bemas Muhasebe backend
-// (usually running on one shared "server" computer on the office network) and
-// opens its admin-panel UI in a native window.
+// The desktop client is a thin shell around a Bemas Muhasebe backend. By
+// default (no config override) it is fully self-contained: it bundles the
+// backend as a PyInstaller-frozen exe and spawns it on 127.0.0.1 itself, so
+// someone on a completely different computer/network - e.g. a relative with
+// no technical setup ability - can just run the installer and have a working
+// app with zero network/IP/Python configuration.
 //
 // Which server to connect to is resolved in this order:
 //   1. BEMAS_SERVER_URL env var (developer override)
 //   2. config.json saved in this app's userData folder (set once via the
 //      in-app "Sunucu Adresi" screen below, persists across restarts/reinstalls
-//      of the app itself since userData is separate from the install folder)
-//   3. http://localhost:8000 (same-machine backend)
+//      of the app itself since userData is separate from the install folder) -
+//      this is the "connect to a shared/remote server instead" escape hatch
+//   3. http://localhost:8000, auto-starting the bundled backend if nothing is
+//      already listening there
 const ADMIN_PATH = "/adminpanel/";
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
+const LOCAL_BACKEND_URL = "http://127.0.0.1:8000";
+
+// Where the bundled backend exe lives once packaged (see package.json's
+// electron-builder "extraResources": dist_pyinstaller/bemas-backend copied to
+// resources/backend). Not present in dev mode - dev runs the backend manually.
+const BUNDLED_BACKEND_EXE = path.join(
+  process.resourcesPath || "",
+  "backend",
+  "bemas-backend.exe"
+);
+
+let backendProcess = null;
 
 function readConfiguredServerUrl() {
   try {
@@ -61,7 +79,72 @@ function addReloadShortcut(win) {
   });
 }
 
+// True only when the user has explicitly pointed this install at some other
+// server (dev env var, or the one-time "Sunucu Adresi" setup screen). In
+// that case we never touch the bundled backend - the whole point of that
+// escape hatch is to talk to a server running somewhere else.
+function hasExplicitServerOverride() {
+  return Boolean(process.env.BEMAS_SERVER_URL || readConfiguredServerUrl());
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Starts the bundled backend exe (packaged builds only) and waits for it to
+// answer /api/health, so a relative on a totally different computer/network
+// never has to install Python or type in a server address - it just works
+// the moment the installer finishes.
+async function startBundledBackend() {
+  if (backendProcess) return true; // already starting/started this run
+  if (!app.isPackaged) return false; // dev mode: run the backend manually
+  if (!fs.existsSync(BUNDLED_BACKEND_EXE)) return false;
+
+  try {
+    backendProcess = spawn(BUNDLED_BACKEND_EXE, [], {
+      cwd: path.dirname(BUNDLED_BACKEND_EXE),
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    backendProcess.on("exit", () => {
+      backendProcess = null;
+    });
+  } catch (_) {
+    backendProcess = null;
+    return false;
+  }
+
+  // Poll rather than wait a fixed delay - a cold machine's first launch
+  // (antivirus scanning the exe, disk still warming up, etc.) can take a
+  // few seconds longer than a typical one.
+  for (let attempt = 0; attempt < 40; attempt++) {
+    if (await canReach(LOCAL_BACKEND_URL)) return true;
+    await sleep(500);
+  }
+  return false;
+}
+
+function stopBundledBackend() {
+  if (backendProcess) {
+    backendProcess.kill();
+    backendProcess = null;
+  }
+}
+
 async function loadAppOrSetup(win) {
+  if (!hasExplicitServerOverride()) {
+    // Fully self-contained mode: try the local backend, starting it
+    // ourselves if nothing is listening yet, and never prompt for an
+    // address unless that genuinely fails.
+    if (!(await canReach(LOCAL_BACKEND_URL))) {
+      await startBundledBackend();
+    }
+    if (await canReach(LOCAL_BACKEND_URL)) {
+      win.loadURL(`${LOCAL_BACKEND_URL}${ADMIN_PATH}`);
+      return;
+    }
+  }
+
   const serverUrl = currentServerUrl();
   if (await canReach(serverUrl)) {
     win.loadURL(`${serverUrl}${ADMIN_PATH}`);
@@ -120,4 +203,8 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  stopBundledBackend();
 });

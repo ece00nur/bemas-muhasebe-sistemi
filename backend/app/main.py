@@ -1,4 +1,5 @@
 import os
+import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,8 +50,13 @@ def health():
 
 # Serves the admin panel UI (static SPA) that the Electron desktop app opens
 # locally at http://localhost:8000/adminpanel/ - not exposed publicly.
-_frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "frontend")
-_frontend_dir = os.path.abspath(_frontend_dir)
+# When PyInstaller-frozen, the frontend/ folder is bundled as data and
+# extracted under sys._MEIPASS instead of living next to this source file.
+if getattr(sys, "frozen", False):
+    _frontend_dir = os.path.join(sys._MEIPASS, "frontend")
+else:
+    _frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "frontend")
+    _frontend_dir = os.path.abspath(_frontend_dir)
 if os.path.isdir(_frontend_dir):
     app.mount(
         settings.admin_panel_base_path,
